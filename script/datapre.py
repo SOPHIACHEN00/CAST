@@ -49,7 +49,7 @@ def load_and_partition(seed, dataset, distribution, alpha, num_parts):
     # first load data
     loader = str_to_dataset(dataset)
     alpha_list = np.array([alpha for _ in range(num_parts)])
-    loader.read(test_ratio=config.test_ratio, shuffle_seed=seed, nrows=config.num_rows_of_dataset[dataset]) # 修改了config 包括了mnist
+    loader.read(test_ratio=config.test_ratio, shuffle_seed=seed, nrows=config.num_rows_of_dataset[dataset]) # The configuration includes MNIST.
 
     if distribution == "uniform":
         loader.uniform_split(num_parts)

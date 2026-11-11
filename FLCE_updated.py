@@ -51,9 +51,9 @@ from module.method.attack_updated_nonlayerwise import (
     ScaledDeltaAttack, AdvancedScaledDeltaAttack, WangLocalDeviationAttack,
     FraboniDisguisedAttack,
     DKFRLiteAttack, SyntheticReplacementAttack,
-    frobenius_scaled_identity_provider,   # 便宜版曲率
-    # hutchinson_hvp_provider,            # 要真HVP再解开 & 提供 loss_fn/batch
-    # zeros_hessian_provider,             # 显式禁用时可用
+    frobenius_scaled_identity_provider,   # Low-cost curvature approximation.
+    # hutchinson_hvp_provider,            # Enable for HVPs; supply loss_fn/batch.
+    # zeros_hessian_provider,             # Use to explicitly disable curvature.
 )
 from module.method.attack_updated_layerwise import (
     LayerwiseAdaptiveARIMAAttackMNISTIMDB,

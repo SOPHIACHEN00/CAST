@@ -5,7 +5,7 @@ DATA_ROOT = Path("data/raw")
 
 transform = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize((0.1307,), (0.3081,))  #MNIST 全训练集的像素均值； 标准差--> 均值0 方差1，降低无关噪音
+    transforms.Normalize((0.1307,), (0.3081,))  # Standardize using the MNIST training-set pixel mean and standard deviation.
 ])
 
 train_dataset = datasets.MNIST(
@@ -22,17 +22,17 @@ test_dataset = datasets.MNIST(
     transform=transform
 )
 
-# 如果你用 multiprocessing / Ray / joblib
+# When using multiprocessing, Ray, or joblib:
 
-# 第一次下载请单进程做：
+# Download the dataset once in a single process:
 
 # # run once
 # datasets.MNIST("data/raw", train=True, download=True)
 # datasets.MNIST("data/raw", train=False, download=True)
 
 
-# 之后所有脚本统一用：
+# Use the following setting in subsequent workers:
 
 # download=False
 
-# 否则多个 worker 同时下数据 → 偶发 race condition。
+# Concurrent downloads from multiple workers can cause intermittent race conditions.

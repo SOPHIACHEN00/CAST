@@ -1,32 +1,32 @@
-# RQ1 / RQ2 后处理
+# RQ1 / RQ2 postprocessing
 
-此目录收录当前数据分析项目中的共享公式与实验适配器。保留原有相对目录结构，是因为适配器通过文件路径加载 `Analysis Code/` 下的公式。
+This directory contains shared metric definitions and experiment adapters from the current analysis project. The relative directory structure is preserved because adapters load metric functions from `Analysis Code/` by file path.
 
-## 通用贡献 CSV
+## Combined contribution CSVs
 
-输入为已有的 `combined_contributions_trial*.csv`，包含 `ClientID`、`AttackerID`、`WithAttacker`、`WithoutAttacker` 及各脚本要求的实验配置列。
+Inputs are existing `combined_contributions_trial*.csv` files with `ClientID`, `AttackerID`, `WithAttacker`, `WithoutAttacker`, and the experiment configuration columns required by each script.
 
-从仓库根目录执行：
+Run from the repository root:
 
 ```bash
 python "analysis/Analysis Code/Q1/compute_q1_summary.py" combined_contributions_trial0.csv -o q1_attacker_ratio_summary.csv
 python "analysis/Analysis Code/Q2/compute_q2_honest_impact_summary.py" combined_contributions_trial0.csv -o q2_honest_impact_summary.csv
 ```
 
-- `Q1/compute_q1_summary.py`：攻击者有符号 Shapley 值 / 所有客户端 Shapley 值之和。
-- `Q1/compute_q1_positive_credit_summary.py`：另外保留正贡献份额口径，将负值截为零后计算份额。
-- `Q2/compute_q2_honest_impact_summary.py`：配对诚实客户端的绝对变化、方向性损失和正损失等指标。
-- `Q2/compute_q2_summary.py`：原始平均绝对变化汇总入口。
-- `q1_*group_mean.py`、`q2_*group_mean.py`、`q1_avg_steal_summary.py`、`q2_avg_impact_summary.py`：相应表格的分组汇总。部分旧入口按当前工作目录读取默认 CSV 名称。
-- `Q2/compute_q2_honest_client_boxplot.py`：输出诚实客户端层面的指标表。
+- `Q1/compute_q1_summary.py`: the attacker's signed Shapley value divided by the sum across all clients.
+- `Q1/compute_q1_positive_credit_summary.py`: also reports the positive-credit share after clipping negative contributions to zero.
+- `Q2/compute_q2_honest_impact_summary.py`: absolute changes, signed losses, and positive losses for matched honest clients.
+- `Q2/compute_q2_summary.py`: the original mean absolute-change summary.
+- `q1_*group_mean.py`, `q2_*group_mean.py`, `q1_avg_steal_summary.py`, and `q2_avg_impact_summary.py`: grouped summaries. Some older entry points read default CSV filenames from the current working directory.
+- `Q2/compute_q2_honest_client_boxplot.py`: produces metrics at the honest-client level.
 
-不同脚本的指标定义和列名保持原样；有符号贡献比例、正贡献份额、绝对影响及方向性损失应分别解释。
+Metric definitions and column names are preserved. Signed contribution ratios, positive-credit shares, absolute impact, and directional losses represent different quantities and should be interpreted separately.
 
-## 多攻击者 Uniform 实验
+## Multiple attackers with Uniform partitions
 
-入口：`all_attacking_integrate/tune_freerider/uniform/process_freerider_rq1_rq2.py`。
+Entry point: `all_attacking_integrate/tune_freerider/uniform/process_freerider_rq1_rq2.py`.
 
-将实际实验导出的输入放在该入口旁，保持以下结构：
+Place the corresponding experiment exports beside the entry point using this layout:
 
 ```text
 uniform/
@@ -41,22 +41,22 @@ uniform/
     imdb/{control_contributions.csv,control_audit.csv}
 ```
 
-`sha256.json` 是经过核对的原始下载文件清单，键为相对此目录的路径、值为 SHA-256。需要使用与实际输入配套的清单。源代码仓库不附带这些实验输入。
+`sha256.json` is the verified raw-download manifest: keys are paths relative to this directory and values are SHA-256 hashes. Supply the manifest that matches the actual inputs. The source repository does not bundle experiment data.
 
 ```bash
 python analysis/all_attacking_integrate/tune_freerider/uniform/process_freerider_rq1_rq2.py --partition uniform
 ```
 
-该适配器检查完整的既定实验设计：每数据集 36 个攻击任务、9 个诚实对照，N=8，攻击者数 1/2/3，三个攻击者分配组。主 RQ1 指标是**每名攻击者的平均贡献 / 总贡献**，攻击者总份额另外保留；RQ2 为配对诚实客户端的平均绝对 Shapley 变化。组间标准差使用 `ddof=1`。这不是任意任务矩阵的通用读取器。
+This adapter validates the established complete experiment design: 36 attack tasks and 9 honest controls per dataset, N=8, 1/2/3 attackers, and three attacker-assignment groups. The primary RQ1 metric is **mean contribution per attacker divided by total contribution**; total attacker share is retained separately. RQ2 measures the mean absolute Shapley change across matched honest clients. Group-level sample standard deviations use `ddof=1`. The adapter expects this specific task matrix.
 
-## 其他实验适配器
+## Other experiment adapters
 
-| 文件 | 作用 |
+| File | Purpose |
 | --- | --- |
-| `all_attacking_integrate/tunefreeridet/uniform_offline_pure/process_offline_pure_rq1.py` | 离线 pure 多攻击者 RQ1，保留既有目录名和 54 个任务的完整性要求 |
-| `all_attacking_integrate/tune_lambda/process_lambda_rq1_rq2.py` | LambdaH 调参，分组时保留 LambdaH |
-| `all_attacking_integrate/finetuneinterval/process_interval_rq1_rq2.py` | 调参间隔实验，保留调参参数与间隔 |
+| `all_attacking_integrate/tunefreeridet/uniform_offline_pure/process_offline_pure_rq1.py` | Offline pure multi-attacker RQ1; preserves the existing directory name and completeness checks for 54 tasks |
+| `all_attacking_integrate/tune_lambda/process_lambda_rq1_rq2.py` | LambdaH sensitivity; retains LambdaH in grouping keys |
+| `all_attacking_integrate/finetuneinterval/process_interval_rq1_rq2.py` | Adaptation-interval sensitivity; retains the tuning parameter and interval |
 
-各适配器使用入口旁的既有实验目录/文件名；需先放入对应原始 CSV。若分析单攻击者三种聚合方法的新实验，`script/rq1_*_campaign.py` 已包含 JSON 到 `rq1_detail` / `rq1_mean_std` 等 CSV 的计算逻辑，可使用其 `--merge-only CAMPAIGN_DIRECTORY`。
+Each adapter expects the original experiment directories and filenames beside its entry point. Supply the corresponding raw CSVs first. For the newer single-attacker experiments comparing three aggregation methods, `script/rq1_*_campaign.py` already converts result JSON into `rq1_detail`, `rq1_mean_std`, and related CSVs through `--merge-only CAMPAIGN_DIRECTORY`.
 
-只运行分析时可安装 `requirements-analysis.txt`。本仓库不含绘图产物、原始结果或服务器连接脚本。
+For analysis alone, install `requirements-analysis.txt`. Generated plots, raw results, and server-connection scripts are not bundled here.

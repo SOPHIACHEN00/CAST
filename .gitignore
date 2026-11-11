@@ -30,6 +30,7 @@ venv/
 /Results*/
 /Processed/
 /runs/
+/.*_runs/
 /logs*/
 /tmp/
 /backups/

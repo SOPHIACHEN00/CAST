@@ -213,7 +213,7 @@ class Measure(ABC):
 
         # ---- init the clients ----
         client_models = []
-        # server_model 定为 self.model
+        # Use self.model as the server model.
         self.model.load_state_dict(self.model.initial_state_dict)
 
         for i in range(self.num_parts):
