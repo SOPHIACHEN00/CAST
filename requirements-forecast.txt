@@ -1,0 +1,13 @@
+-r requirements.txt
+# Optional ARIMA and Moirai attack dependencies from the source setup.
+pmdarima==2.0.4
+statsmodels==0.14.0
+# Version declared by the workspace's uni2ts/src/uni2ts/__about__.py.
+uni2ts==2.0.0
+gluonts==0.14.4
+einops==0.7.0
+huggingface-hub==0.30.2
+safetensors==0.5.3
+# Uni2TS uses datasets 2.17.x; preserve the recorded Arrow compatibility pair.
+pyarrow==20.0.0
+pyarrow-hotfix==0.7

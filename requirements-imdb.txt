@@ -1,0 +1,5 @@
+-r requirements.txt
+datasets==2.17.1
+transformers==4.40.2
+pyarrow==20.0.0
+pyarrow-hotfix==0.7
