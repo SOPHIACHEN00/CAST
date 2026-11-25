@@ -1,17 +1,17 @@
 import argparse
+import sys
+from pathlib import Path
+
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from contribution_csv import mean_group_columns
 
 
 def summarize_q1(input_csv_path, output_csv_path):
     df = pd.read_csv(input_csv_path)
 
-    group_cols = [
-        "Dataset",
-        "AttackMethod",
-        "Alpha",
-        "ClientNum",
-        "AttackMode",
-    ]
+    group_cols = mean_group_columns(df)
 
     q1_group_mean = (
         df.groupby(group_cols, dropna=False)["Q1_AttackerRatio"]

@@ -22,7 +22,7 @@ The shared entry point selects `fedavg`, `fedadam`, or `weighted_median` through
 
 Attack choices include `random`, `replay`, `fraboni_disguised`, `scaled_delta`, `advanced_scaled_delta`, `adam_local_deviation`, `dkfr`, `synthetic_replacement`, offline/adaptive ARIMA, offline/online Moirai, and the corresponding layerwise forecast variants for MNIST/IMDB. Pure and lazy schedules are configured by the same runner. See the [complete attack and launcher inventory](docs/attack_workflows.md) for the available combinations.
 
-Qualitative methods include EDS, STD-DAGMM, Delta-DAGMM, WEF, S2-WEF, PASS, and log-based free-rider detection. Quantitative methods include exact Shapley, sampling Shapley, and sampling least core. The current STD-DAGMM implementation imports its base network and configuration from `std_dagmm_old_v1.py`, so that file remains a required dependency.
+Qualitative methods include EDS, STD-DAGMM, Delta-DAGMM, WEF, S2-WEF, PASS-CE, and log-based free-rider detection. EDS implements the ensemble of similarity-distance metrics. RFFL has a separate reputation and reward protocol with its own [author implementation](https://github.com/XinyiYS/Robust-and-Fair-Federated-Learning). Quantitative methods include exact Shapley, sampling Shapley, sampling least core, and leave-one-out (`loo`). Leave-one-out uses the same coalition utility as exact Shapley and returns the signed difference between the grand coalition and the coalition excluding the client. The current STD-DAGMM implementation imports its base network and configuration from `std_dagmm_old_v1.py`.
 
 ## Environment
 
@@ -42,6 +42,13 @@ python -m pip install -r requirements-imdb.txt
 
 These dependency lists were assembled from the source environment and direct imports; they are not a complete lockfile validated in a fresh environment. Select a PyTorch/CUDA installation suitable for the target hardware. `requirements-forecast.txt` installs Uni2TS; the existing model loader uses local weights or Hugging Face.
 
+The source snapshot pins PyTorch 2.3.1 and torchvision 0.18.1. To set up the reported PyTorch 2.4.1 / CUDA 12.4 core stack in a separate Python 3.10.17 environment, use the commands below. The optional requirements files above include the snapshot pins. New run manifests record the observed Python version, PyTorch version and PyTorch CUDA build. The hardware and original package lock for each archived run need separate provenance. [PyTorch release matrix](https://pytorch.org/get-started/previous-versions/#v241)
+
+```bash
+python -m pip install -r requirements-analysis.txt scipy==1.11.4 scikit-learn==1.3.0
+python -m pip install torch==2.4.1 torchvision==0.19.1 --index-url https://download.pytorch.org/whl/cu124
+```
+
 ## Data and preprocessing
 
 Prepare raw datasets, preprocessed tensors, model weights, and experiment results separately. Main dataset paths:
@@ -60,6 +67,14 @@ For MNIST, run `python MNIST_download.py` first. The IMDB download script saves 
 python download_IMDB.py
 python script/download_distilbert_model.py
 python script/preprocess_imdb_embeddings.py --dataset_dir imdb_dataset
+```
+
+IMDB preprocessing pools the two labelled splits and encodes each review as the first-token hidden state of frozen DistilBERT (768 features for the supplied checkpoint, truncation at 256 tokens). MNIST pools 70,000 images and flattens them to 784 pixels. Both loaders re-split the pool 90/10. The Adult loader drops incomplete rows before splitting (30,162 complete rows in the standard 32,561-row file). The runner uses quantity-skew Dirichlet proportions to allocate the shuffled pool. The uniform setting divides it into equal-sized shards up to rounding. A trial ID and the seed controlling the partition are distinct fields.
+
+For Dota2, place the two headerless UCI files in the Dota2 directory and concatenate train followed by test. The historical combined input has 102,944 rows and SHA-256 `f2bf7b2544cb93f8748f51f041fc098d723c9fcb27276149e7bae95c0938b6c0`. Run this command in the directory containing the two downloaded CSVs. [UCI Dota2 files](https://archive.ics.uci.edu/dataset/367/dota2+games+results)
+
+```bash
+python -c "from pathlib import Path; Path('dota2.csv').write_bytes(Path('dota2Train.csv').read_bytes() + Path('dota2Test.csv').read_bytes())"
 ```
 
 ## Running experiments
@@ -89,7 +104,7 @@ bash script/run_uniform_freerider_rq1_rq2.sh
 
 Additional per-dataset pure/lazy, passive-detection, PASS, log-based, and sampling launchers are documented in [attack workflows](docs/attack_workflows.md). Each launcher retains its existing experiment matrix and execution controls. Inspect its header before changing GPU or concurrency settings: some dedicated entry points fix these values. Use `--help` for the complete FLCE argument reference.
 
-See [`analysis/README.md`](analysis/README.md) for RQ1/RQ2 input formats, metric definitions, and postprocessing commands.
+See the [analysis guide](analysis/README.md) for figure inputs, paired credit comparisons, client-round Recall/FPR, timing denominators and postprocessing commands. Historical `use_hessian` labels denote a constant-tensor correction proxy. The online Moirai variant updates a forecast residual with a frozen backbone. Layerwise selection counts parameterized modules. These distinctions affect the interpretation of ablation results.
 
 ## Validation and provenance
 
@@ -98,4 +113,4 @@ python -m pip install -r requirements-dev.txt
 python -m pytest -q tests
 ```
 
-The release preserves experiment logic while normalizing text encoding/line endings and translating comments and documentation into English. File origins, publication changes, and SHA-256 hashes are recorded in [`docs/source_manifest.json`](docs/source_manifest.json). Validation scope and limitations are documented in [`docs/validation.md`](docs/validation.md).
+The [original source manifest](docs/source_manifest.json) records the copied files and hashes in the [archived release](https://github.com/SOPHIACHEN00/CAST/tree/8d4d1bfd75df41d8630637aa5a0cf32ba07cac59). Git tracks subsequent changes, including the contribution, detection and timing analysis commands. The [validation record](docs/validation.md) identifies the checks performed for each release.

@@ -1,67 +1,26 @@
 import argparse
+import sys
+from pathlib import Path
 
 import pandas as pd
 
-
-def parse_bool(value):
-    if isinstance(value, bool):
-        return value
-    if pd.isna(value):
-        return False
-    return str(value).strip().lower() in {"1", "true", "yes", "y"}
-
-
-def infer_attack_mode(use_lazy, lazy_honest_gap):
-    if parse_bool(use_lazy):
-        gap = int(float(lazy_honest_gap))
-        if gap == 2:
-            return "1real_1fake"
-        if gap == 3:
-            return "1real_2fake"
-        if gap == 10:
-            return "1real_9fake"
-        return f"1real_{gap - 1}fake"
-    return "pure_fake"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from contribution_csv import read_contribution_runs
 
 
 def process_combined_csv_for_q2_boxplot(input_csv_path, output_csv_path):
-    df = pd.read_csv(input_csv_path)
-
-    df["WithAttacker"] = pd.to_numeric(df["WithAttacker"], errors="coerce")
-    df["WithoutAttacker"] = pd.to_numeric(df["WithoutAttacker"], errors="coerce")
-    df["ClientID"] = pd.to_numeric(df["ClientID"], errors="coerce")
-    df["AttackerID"] = pd.to_numeric(df["AttackerID"], errors="coerce")
-    df["UseAttackBool"] = df["UseAttack"].apply(parse_bool)
-    df = df[df["UseAttackBool"]].copy()
-
-    df["AttackMode"] = df.apply(
-        lambda row: infer_attack_mode(row["UseLazy"], row["LazyHonestGap"]),
-        axis=1,
-    )
+    df, run_keys = read_contribution_runs(input_csv_path, require_controls=True)
 
     # The attacker row has no no-attacker baseline. Keep only honest clients.
     df = df[df["ClientID"] != df["AttackerID"]].copy()
-    df = df.dropna(subset=["WithAttacker", "WithoutAttacker"])
+    df["WithoutAttacker"] = pd.to_numeric(df["WithoutAttacker"], errors="raise")
 
     df["Q2_Delta"] = df["WithAttacker"] - df["WithoutAttacker"]
     df["Q2_AbsImpact"] = df["Q2_Delta"].abs()
     df["Q2_HonestLoss"] = df["WithoutAttacker"] - df["WithAttacker"]
     df["Q2_PositiveHonestLoss"] = df["Q2_HonestLoss"].clip(lower=0)
 
-    output_cols = [
-        "Dataset",
-        "AttackMethod",
-        "Alpha",
-        "ClientNum",
-        "AttackerID",
-        "TrialID",
-        "ContributionMethod",
-        "UseHessian",
-        "UseLazy",
-        "LazyHonestGap",
-        "LazyHonestPhase",
-        "LazyFakePolicy",
-        "AttackMode",
+    output_cols = run_keys + [
         "ClientID",
         "WithAttacker",
         "WithoutAttacker",

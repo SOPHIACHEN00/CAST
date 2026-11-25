@@ -38,3 +38,14 @@ This expansion adds current launcher coverage and English documentation; it does
 - No real-data RQ1/RQ2 tables were regenerated. Dataset-specific adapters require their original CSV layouts and, where applicable, a matching raw-file hash manifest.
 
 The source snapshot is verified for curation integrity and the checks above; this report does not claim full experimental reproduction.
+
+## Contribution and detector analysis revision
+
+The checks above describe the historical source snapshot (`8d4d1bf`). The following checks cover the analysis and measurement changes on top of it.
+
+- Ran the public Q1 and honest-impact commands on archived exports using both method-column names. The old TicTacToe export produced 480 per-run summaries from 2,880 client rows. A current sampling least-core export produced 320 summaries from 1,920 rows.
+- Rebuilt both Figure 1/2 combined inputs from their source summaries and selection manifest. All columns and rows matched the archived CSVs, including 1,040 setting-level shares and 12,560 client-level records.
+- Compared the plotted observations from the four figure commands to the corresponding archived figure inputs. The comparisons covered 490 share points, 420 individual observations in 84 boxes, 72 multi-client means and 96 mixture-weight points. The new plots label the measured units and use a continuous axis for the honest-client impacts.
+- Recomputed both Recall/FPR tables at their displayed precision from archived client-round decisions. Each of the 58 cells uses 12 settings. The separate PASS check uses evaluated decisions.
+- Checked the timing summary against 25 recorded honest rounds and a 4,000-task generation-time grid. Tested leave-one-out and the opt-in honest timer on small CPU runs, including competing writers to the same timing path. Full training and GPU latency measurements require the original inputs and hardware.
+- Ran 57 tests across eight modules for contribution CSVs, matched controls, detector summaries, timing, figure-table assembly, leave-one-out, aggregation and result merging. The test runtime used Python 3.11, PyTorch 2.2.1 and torchvision 0.17.1.
