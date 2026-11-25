@@ -30,6 +30,14 @@ def resolve_detecting_method(
             detecting_type=QUANTITATIVE,
             implementation=ShapleyValue,
         )
+    elif normalized_name in {"loo", "leave_one_out"}:
+        from module.method.quantitative_detecting.leave_one_out import LeaveOneOut
+
+        spec = DetectingMethodSpec(
+            name="loo",
+            detecting_type=QUANTITATIVE,
+            implementation=LeaveOneOut,
+        )
     elif normalized_name == "sampling_shapley":
         from module.method.quantitative_detecting.sampling_shapley import (
             SamplingShapleyValue,
@@ -111,7 +119,7 @@ def resolve_detecting_method(
     else:
         raise ValueError(
             f"Unsupported detecting method '{method_name}'. "
-            "Cadence v21 supports only: shapley, sampling_shapley, "
+            "Cadence v21 supports only: shapley, loo (leave_one_out), sampling_shapley, "
             "sampling_least_core, eds, std_dagmm, delta_dagmm, wef, s2_wef, "
             "pass, log_based_free_rider_detection."
         )

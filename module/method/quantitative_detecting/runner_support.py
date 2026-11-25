@@ -60,7 +60,7 @@ def build_sampling_call_kwargs(
 ) -> dict[str, Any]:
     """Build only the keyword arguments accepted by the selected estimator."""
     normalized_method = str(method).lower()
-    if normalized_method == "shapley":
+    if normalized_method in {"shapley", "loo", "leave_one_out"}:
         return {}
 
     resolved_num_parts = _require_integer(num_parts, "num_parts")

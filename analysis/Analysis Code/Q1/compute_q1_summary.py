@@ -1,26 +1,11 @@
 import argparse
+import sys
+from pathlib import Path
+
 import pandas as pd
 
-
-def parse_bool(value):
-    if isinstance(value, bool):
-        return value
-    if pd.isna(value):
-        return False
-    return str(value).strip().lower() in {"1", "true", "yes", "y"}
-
-
-def infer_attack_mode(use_lazy, lazy_honest_gap):
-    if parse_bool(use_lazy):
-        gap = int(float(lazy_honest_gap))
-        if gap == 2:
-            return "1real_1fake"
-        if gap == 3:
-            return "1real_2fake"
-        if gap == 10:
-            return "1real_9fake"
-        return f"1real_{gap - 1}fake"
-    return "pure_fake"
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from contribution_csv import read_contribution_runs
 
 
 def compute_attacker_ratio(group_df):
@@ -45,33 +30,7 @@ def compute_attacker_ratio(group_df):
 
 
 def process_combined_csv_for_q1(input_csv_path, output_csv_path):
-    df = pd.read_csv(input_csv_path)
-
-    df["WithAttacker"] = pd.to_numeric(df["WithAttacker"], errors="coerce")
-    df["ClientID"] = pd.to_numeric(df["ClientID"], errors="coerce")
-    df["AttackerID"] = pd.to_numeric(df["AttackerID"], errors="coerce")
-    df["UseAttackBool"] = df["UseAttack"].apply(parse_bool)
-    df = df[df["UseAttackBool"]].copy()
-    df["AttackMode"] = df.apply(
-        lambda row: infer_attack_mode(row["UseLazy"], row["LazyHonestGap"]),
-        axis=1,
-    )
-
-    group_cols = [
-        "Dataset",
-        "AttackMethod",
-        "Alpha",
-        "ClientNum",
-        "AttackerID",
-        "TrialID",
-        "ContributionMethod",
-        "UseHessian",
-        "UseLazy",
-        "LazyHonestGap",
-        "LazyHonestPhase",
-        "LazyFakePolicy",
-        "AttackMode",
-    ]
+    df, group_cols = read_contribution_runs(input_csv_path)
 
     results = []
     for group_key, group_df in df.groupby(group_cols, dropna=False):
@@ -83,7 +42,7 @@ def process_combined_csv_for_q1(input_csv_path, output_csv_path):
         record["Q1_AttackerRatio"] = ratio
         results.append(record)
 
-    df_result = pd.DataFrame(results)
+    df_result = pd.DataFrame(results, columns=group_cols + ["Q1_AttackerRatio"])
     df_result.to_csv(output_csv_path, index=False)
     print(f"\nQ1 ratio summary saved to: {output_csv_path}")
 

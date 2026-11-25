@@ -1,6 +1,11 @@
 import argparse
+import sys
+from pathlib import Path
 
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from contribution_csv import mean_group_columns
 
 
 DEFAULT_METRICS = [
@@ -24,13 +29,7 @@ DEFAULT_METRICS = [
 def summarize_q2(input_csv_path, output_csv_path):
     df = pd.read_csv(input_csv_path)
 
-    group_cols = [
-        "Dataset",
-        "AttackMethod",
-        "Alpha",
-        "ClientNum",
-        "AttackMode",
-    ]
+    group_cols = mean_group_columns(df)
 
     metric_cols = [col for col in DEFAULT_METRICS if col in df.columns]
     summary = df.groupby(group_cols, dropna=False)[metric_cols].mean().reset_index()

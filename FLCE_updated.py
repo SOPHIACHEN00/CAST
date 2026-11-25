@@ -244,6 +244,9 @@ def _collect_attack_parameters(parsed_args, dataset_name, method_name):
         for name, value in vars(parsed_args).items()
         if name in exact_names or name.startswith(attack_prefixes)
     }
+    parameters["configured_correction_provider"] = (
+        "constant_tensor_proxy" if parsed_args.use_hessian else "none"
+    )
     if method_name in MOIRAI_ONLINE_METHODS:
         parameters["effective_moirai_online_adapter"] = (
             _effective_moirai_online_parameters(
@@ -318,6 +321,11 @@ def _write_run_provenance(parsed_args, dataset_name, method_name, detecting_name
     payload = {
         "schema_version": 1,
         "created_at_utc": created_at.isoformat(),
+        "runtime": {
+            "python": sys.version.split()[0],
+            "torch": str(torch.__version__),
+            "torch_cuda_build": torch.version.cuda,
+        },
         "pid": os.getpid(),
         "cwd": str(Path.cwd().resolve()),
         "argv": list(sys.argv),
@@ -400,12 +408,12 @@ parser.add_argument(
     type=str,
     default='shapley',
     choices=[
-        'shapley', 'sampling_shapley', 'sampling_least_core',
+        'shapley', 'loo', 'leave_one_out', 'sampling_shapley', 'sampling_least_core',
         'eds', 'std_dagmm', 'delta_dagmm', 'wef', 's2_wef', 'pass',
         'log_based_free_rider_detection',
     ],
     help=(
-        'Detecting method. shapley, sampling_shapley, and '
+        'Detecting method. shapley, loo (alias leave_one_out), sampling_shapley, and '
         'sampling_least_core are quantitative; eds, std_dagmm, '
         'delta_dagmm, wef, s2_wef, pass, and '
         'log_based_free_rider_detection are qualitative. '
@@ -618,8 +626,10 @@ parser.add_argument(
 )
 
 # hessian optional
-parser.add_argument('--use_hessian', action='store_true', help='Enable Hessian fusion')
-parser.add_argument('--lambda_h', type=float, default=0.9, help='Weight for f_P in Eq.(3)')
+parser.add_argument('--use_hessian', action='store_true',
+                    help='Enable the historical constant-tensor correction proxy.')
+parser.add_argument('--lambda_h', type=float, default=0.9,
+                    help='Forecast weight when the historical correction proxy is enabled.')
 
 # ARIMA readiness plus adaptive reset/retraining options
 parser.add_argument('--arima_var_window', type=int, default=3,
@@ -809,6 +819,8 @@ parser.add_argument('--dump_dir', type=str, default='data/grad_hist',
                     help='Directory to save gradient CSVs, e.g., data/grad_hist')
 parser.add_argument('--results_root', type=str, default='Results_updated',
                     help='Root directory for isolated updated-run csv outputs.')
+parser.add_argument('--honest_round_timing_csv', metavar='PATH',
+                    help='Also save no-attack training time through broadcast for each round to a new CSV.')
 
 
 args = parser.parse_args()
@@ -835,6 +847,16 @@ except ValueError as exc:
 
 detecting_method = detecting_spec.name
 detecting_type = detecting_spec.detecting_type
+if args.honest_round_timing_csv is not None:
+    args.honest_round_timing_csv = Path(args.honest_round_timing_csv)
+    if (detecting_type != 'quantitative' or args.use_attack or args.use_lazy or args.rq1_only
+            or args.attacker_ids is not None or args.control_excluded_ids is not None
+            or args.dump_grad_history or args.check_detecting_setup):
+        parser.error('--honest_round_timing_csv requires an ordinary no-attack quantitative run without gradient dumps')
+    if args.num_epoch < 1:
+        parser.error('--honest_round_timing_csv requires at least one training round')
+    if args.honest_round_timing_csv.exists():
+        parser.error(f'timing CSV already exists: {args.honest_round_timing_csv}')
 if fl_aggregation_config.method != "fedavg":
     if detecting_type == "quantitative" and not args.use_last_round_sv:
         parser.error('FedAdam/weighted Median contribution evaluation requires --use_last_round_sv.')
@@ -2401,9 +2423,10 @@ def run_federated_learning(loader, model, attacker_id, attacker, use_attack,
                          num_epoch, num_local_epochs, device, record_gradients=False,
                          collect_history=False, public_data=None,
                          realized_attack_rounds_out=None, last_round_aggregation_out=None,
-                         single_attacker_audit_out=None):
+                         single_attacker_audit_out=None, honest_round_seconds=None):
     aggregation_config = AggregationConfig.from_args(args)
     server_aggregator = ServerAggregator(aggregation_config)
+    time_cuda_rounds = honest_round_seconds is not None and torch.device(device).type == 'cuda'
     if last_round_aggregation_out is not None:
         last_round_aggregation_out.clear()
     # The dedicated path supplies independent attack instances keyed by client ID.
@@ -2553,7 +2576,11 @@ def run_federated_learning(loader, model, attacker_id, attacker, use_attack,
             )
 
     for round_num in range(num_epoch):
-            # Take snapshot right before entering the last R_FOR_SV rounds
+        if honest_round_seconds is not None:
+            if time_cuda_rounds:
+                torch.cuda.synchronize(device)
+            round_started_at = time.perf_counter()
+        # Take snapshot right before entering the last R_FOR_SV rounds
         trig = (num_epoch - R_FOR_SV) - 1
         if num_epoch >= R_FOR_SV and round_num == trig:
             state_t_minus_R = copy.deepcopy(model.state_dict())
@@ -3030,6 +3057,11 @@ def run_federated_learning(loader, model, attacker_id, attacker, use_attack,
                 if s2_global_model_difference is not None
                 else None
             )
+
+        if honest_round_seconds is not None:
+            if time_cuda_rounds:
+                torch.cuda.synchronize(device)
+            honest_round_seconds.append(time.perf_counter() - round_started_at)
 
         # evaluation
         acc = model.score(loader.X_test, loader.y_test, ["accuracy"])[0]
@@ -3650,14 +3682,32 @@ if use_attack:
 else:
     # === No attacker path ===
     aggregation_context_no_attack = {}
+    honest_round_seconds = [] if args.honest_round_timing_csv is not None else None
     fl_without_attacker_started_at = time.perf_counter()
     model_no_attack, attack_time_log_no_attack, global_accuracies_log_no_attack, *history_no = run_federated_learning(
         loader, model, attacker_id=None, attacker=None, use_attack=False,
         num_epoch=num_epoch, num_local_epochs=num_local_epochs,
         device=device, record_gradients=need_gradients, collect_history=need_history,
         last_round_aggregation_out=aggregation_context_no_attack,
+        honest_round_seconds=honest_round_seconds,
     )
     fl_without_attacker_wall_sec = time.perf_counter() - fl_without_attacker_started_at
+    if honest_round_seconds is not None:
+        timing_path = args.honest_round_timing_csv
+        timing_path.parent.mkdir(parents=True, exist_ok=True)
+        # A concurrent run may have created the same output since argument parsing.
+        timing_file = timing_path.open('x', newline='', encoding='utf-8')
+        try:
+            with timing_file:
+                writer = csv.writer(timing_file)
+                writer.writerow(['Dataset', 'TrialID', 'RunType', 'ClientNum', 'LocalEpochs',
+                                 'RoundIndex', 'GlobalTrainingSec'])
+                for round_index, seconds in enumerate(honest_round_seconds):
+                    writer.writerow([dataset, trial_id, 'no_attack', num_parts, num_local_epochs,
+                                     round_index, seconds])
+        except BaseException:
+            timing_path.unlink(missing_ok=True)
+            raise
     if need_history:
         (
             round_client_grads_no,
